@@ -10,7 +10,8 @@ module Cloudinary::CarrierWave
   def self.included(base)
     base.storage Cloudinary::CarrierWave::Storage
     base.extend ClassMethods
-    base.class_attribute :storage_type, :metadata
+    base.class_attribute :storage_type, instance_accessor: false
+    base.class_attribute :metadata
     override_in_versions(base, :blank?, :full_public_id, :my_public_id,
       :all_versions_processors, :stored_version)
   end
@@ -25,15 +26,17 @@ module Cloudinary::CarrierWave
 
   def retrieve_from_store!(identifier)
     # Workaround cloudinary-mongoid hack of setting column to _old_ before saving it.
-    mongoid_blank = defined?(Mongoid::Extensions::Object) && self.is_a?(Mongoid::Extensions::Object) && identifier == "_old_"
-    if identifier.blank? || mongoid_blank
-      @file = @stored_version = @stored_public_id = nil
-      self.original_filename = nil
-    else
-      @file = CloudinaryFile.new(identifier, self)
-      @public_id = @stored_public_id = @file.public_id
-      @stored_version = @file.version
-      self.original_filename = sanitize(@file.filename)
+    with_callbacks(:retrieve_from_store, identifier) do
+      mongoid_blank = defined?(Mongoid::Extensions::Object) && self.is_a?(Mongoid::Extensions::Object) && identifier == "_old_"
+      if identifier.blank? || mongoid_blank
+        @file = @stored_version = @stored_public_id = nil
+        self.original_filename = nil
+      else
+        @file = CloudinaryFile.new(identifier, self)
+        @public_id = @stored_public_id = @file.public_id
+        @stored_version = @file.version
+        self.original_filename = sanitize(@file.filename)
+      end
     end
   end
 
